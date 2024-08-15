@@ -1,0 +1,99 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request:
+    branches:
+      - '*'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test-docker:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - container: wpilib/aarch64-cross-ubuntu:bullseye-22.04
+            name: LinuxARM64
+            build-options: "-Ponlylinuxarm64"
+            platform-type: linuxarm64
+            arch: arm64
+          - container: wpilib/raspbian-cross-ubuntu:bullseye-22.04
+            name: LinuxARM32
+            build-options: "-Ponlylinuxarm32"
+            platform-type: linuxarm32
+            arch: arm32
+    runs-on: ubuntu-latest
+    name: "Test - ${{ matrix.name }}"
+    container: ${{ matrix.container }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 11
+
+      - name: Build and run tests
+        run: |
+          ./gradlew build ${{ matrix.build-options }} -PreleaseMode
+
+  test-native:
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            container: ''
+            name: Win64
+            build-options: ""
+            platform-type: windowsx86-64
+          - os: ubuntu-latest
+            container: ''
+            name: Linux64
+            platform-type: linuxx86-64
+            build-options: ""
+          - os: macos-latest
+            container: ''
+            name: macOS
+            platform-type: osxuniversal
+            build-options: ""
+    name: "Test - ${{ matrix.name }}"
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 11
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .gradle
+            bin
+            build
+          key: ${{ matrix.name }}-tesst-${{ github.sha }}
+          restore-keys: |
+            ${{ matrix.name }}-test-
+
+      - name: Build and run tests
+        run: |
+          ./gradlew build ${{ matrix.build-options }} -PreleaseMode
